@@ -1,0 +1,65 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile universal binary
+        run: |
+          clang -O2 -arch arm64 -arch x86_64 -o dsh-launcher main.cpp
+          chmod +x dsh-launcher
+          file dsh-launcher
+
+      - name: Create .app bundle
+        run: |
+          APP="DeepSeek Harness Launcher.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources"
+
+          cp dsh-launcher "$APP/Contents/MacOS/"
+
+          cat > "$APP/Contents/MacOS/launcher" << 'EOF'
+          #!/bin/bash
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          exec "$DIR/dsh-launcher"
+          EOF
+          chmod +x "$APP/Contents/MacOS/launcher"
+
+          cat > "$APP/Contents/Info.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key><string>DeepSeek Harness Launcher</string>
+              <key>CFBundleDisplayName</key><string>DeepSeek Harness Launcher</string>
+              <key>CFBundleIdentifier</key><string>com.deepseek.dsh-launcher</string>
+              <key>CFBundleVersion</key><string>1.4.0</string>
+              <key>CFBundleShortVersionString</key><string>1.4.0</string>
+              <key>CFBundleExecutable</key><string>launcher</string>
+              <key>CFBundlePackageType</key><string>APPL</string>
+              <key>LSMinimumSystemVersion</key><string>11.0</string>
+              <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Package as zip
+        run: |
+          zip -r "DeepSeek-Harness-Launcher-mac.zip" "DeepSeek Harness Launcher.app"
+          ls -lh *.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-App
+          path: DeepSeek-Harness-Launcher-mac.zip
+          retention-days: 30
